@@ -16,17 +16,17 @@
 
 package org.springframework.cloud.netflix.zuul.filters;
 
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import lombok.extern.apachecommons.CommonsLog;
 
+import org.apache.commons.lang.builder.CompareToBuilder;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.cloud.netflix.zuul.filters.ZuulProperties.ZuulRoute;
 import org.springframework.util.AntPathMatcher;
@@ -40,203 +40,235 @@ import org.springframework.util.StringUtils;
 @CommonsLog
 public class ProxyRouteLocator implements RouteLocator {
 
-	public static final String DEFAULT_ROUTE = "/**";
+    public static final Path DEFAULT_ROUTE = new Path("/**");
 
-	private DiscoveryClient discovery;
+    private DiscoveryClient discovery;
 
-	private ZuulProperties properties;
+    private ZuulProperties properties;
 
-	private PathMatcher pathMatcher = new AntPathMatcher();
+    private PathMatcher pathMatcher = new AntPathMatcher();
 
-	private AtomicReference<Map<String, ZuulRoute>> routes = new AtomicReference<>();
+    private AtomicReference<Map<Path, ZuulRoute>> routes = new AtomicReference<>();
 
-	private Map<String, ZuulRoute> staticRoutes = new LinkedHashMap<>();
+    private Map<Path, ZuulRoute> staticRoutes = new LinkedHashMap<>();
 
-	private String servletPath;
+    private String servletPath;
 
-	public ProxyRouteLocator(String servletPath, DiscoveryClient discovery,
-			ZuulProperties properties) {
-	    if (StringUtils.hasText(servletPath)) { // a servletPath is passed explicitly
-	        this.servletPath = servletPath;
-	    } else {
-	        //set Zuul servlet path
-	        this.servletPath = properties.getServletPath() != null? properties.getServletPath() : "";
-	    }
-		
-		this.discovery = discovery;
-		this.properties = properties;
-	}
+    public ProxyRouteLocator(String servletPath, DiscoveryClient discovery,
+                             ZuulProperties properties) {
+        if (StringUtils.hasText(servletPath)) { // a servletPath is passed explicitly
+            this.servletPath = servletPath;
+        } else {
+            //set Zuul servlet path
+            this.servletPath = properties.getServletPath() != null ? properties.getServletPath() : "";
+        }
 
-	public void addRoute(String path, String location) {
-		this.staticRoutes.put(path, new ZuulRoute(path, location));
-		resetRoutes();
-	}
+        this.discovery = discovery;
+        this.properties = properties;
+    }
 
-	public void addRoute(ZuulRoute route) {
-		this.staticRoutes.put(route.getPath(), route);
-		resetRoutes();
-	}
+    public void addRoute(String path, String location) {
+        this.staticRoutes.put(new Path(path), new ZuulRoute(path, location));
+        resetRoutes();
+    }
 
-	@Override
-	public Collection<String> getRoutePaths() {
-		return getRoutes().keySet();
-	}
+    public void addRoute(ZuulRoute route) {
+        this.staticRoutes.put(new Path(route.getPath()), route);
+        resetRoutes();
+    }
 
-	public Map<String, String> getRoutes() {
-		if (this.routes.get() == null) {
-			this.routes.set(locateRoutes());
-		}
-		Map<String, String> values = new LinkedHashMap<>();
-		for (String key : this.routes.get().keySet()) {
-			String url = key;
-			values.put(url, this.routes.get().get(key).getLocation());
-		}
-		return values;
-	}
+    @Override
+    public Collection<String> getRoutePaths() {
+        return getRoutes().keySet();
+    }
 
-	public ProxyRouteSpec getMatchingRoute(String path) {
-	    log.info("Finding route for path: " + path);	    
-	    
-		String location = null;
-		String targetPath = null;
-		String id = null;
-		String prefix = this.properties.getPrefix();
-		log.debug("servletPath=" + this.servletPath);
-		if (StringUtils.hasText(this.servletPath) && !this.servletPath.equals("/")
-				&& path.startsWith(this.servletPath)) {
-			path = path.substring(this.servletPath.length());
-		}
-		log.debug("path=" + path);
-		Boolean retryable = this.properties.getRetryable();
-		for (Entry<String, ZuulRoute> entry : this.routes.get().entrySet()) {
-			String pattern = entry.getKey();
-			log.debug("Matching pattern:" + pattern);
-			if (this.pathMatcher.match(pattern, path)) {
-				ZuulRoute route = entry.getValue();
-				id = route.getId();
-				location = route.getLocation();
-				targetPath = path;
-				if (path.startsWith(prefix) && this.properties.isStripPrefix()) {
-					targetPath = path.substring(prefix.length());
-				}
-				if (route.isStripPrefix()) {
-					int index = route.getPath().indexOf("*") - 1;
-					if (index > 0) {
-						String routePrefix = route.getPath().substring(0, index);
-						targetPath = targetPath.replaceFirst(routePrefix, "");
-						prefix = prefix + routePrefix;
-					}
-				}
-				if (route.getRetryable() != null) {
-					retryable = route.getRetryable();
-				}
-				break;
-			}
-		}
-		return (location == null ? null : new ProxyRouteSpec(id, targetPath, location,
-				prefix, retryable));
-	}
+    public Map<String, String> getRoutes() {
+        if (this.routes.get() == null) {
+            this.routes.set(locateRoutes());
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        for (Path key : this.routes.get().keySet()) {
+            String url = key.getRoute();
+            values.put(url, this.routes.get().get(key).getLocation());
+        }
+        return values;
+    }
 
-	public void resetRoutes() {
-		this.routes.set(locateRoutes());
-	}
+    public ProxyRouteSpec getMatchingRoute(String path) {
+        return getMatchingRoute(path, null);
+    }
 
-	protected LinkedHashMap<String, ZuulRoute> locateRoutes() {
-		LinkedHashMap<String, ZuulRoute> routesMap = new LinkedHashMap<String, ZuulRoute>();
-		addConfiguredRoutes(routesMap);
-		routesMap.putAll(this.staticRoutes);
-		if (this.discovery != null) {
-			Map<String, ZuulRoute> staticServices = new LinkedHashMap<String, ZuulRoute>();
-			for (ZuulRoute route : routesMap.values()) {
-				String serviceId = route.getServiceId();
-				if (serviceId == null) {
-					serviceId = route.getId();
-				}
-				if (serviceId != null) {
-					staticServices.put(serviceId, route);
-				}
-			}
-			// Add routes for discovery services by default
-			List<String> services = this.discovery.getServices();
-			String[] ignored = this.properties.getIgnoredServices()
-					.toArray(new String[0]);
-			for (String serviceId : services) {
-				// Ignore specifically ignored services and those that were manually
-				// configured
-				String key = "/" + serviceId + "/**";
-				if (staticServices.containsKey(serviceId)
-						&& staticServices.get(serviceId).getUrl() == null) {
-					// Explicitly configured with no URL, cannot be ignored
-					// all static routes are already in routesMap
-					// Update location using serviceId if location is null
-					ZuulRoute staticRoute = staticServices.get(serviceId);
-					if (!StringUtils.hasText(staticRoute.getLocation())) {
-						staticRoute.setLocation(serviceId);
-					}
-				}
-				if (!PatternMatchUtils.simpleMatch(ignored, serviceId)
-						&& !routesMap.containsKey(key)) {
-					// Not ignored
-					routesMap.put(key, new ZuulRoute(key, serviceId));
-				}
-			}
-		}
-		if (routesMap.get(DEFAULT_ROUTE) != null) {
-			ZuulRoute defaultRoute = routesMap.get(DEFAULT_ROUTE);
-			// Move the defaultServiceId to the end
-			routesMap.remove(DEFAULT_ROUTE);
-			routesMap.put(DEFAULT_ROUTE, defaultRoute);
-		}
-		LinkedHashMap<String, ZuulRoute> values = new LinkedHashMap<>();
-		for (Entry<String, ZuulRoute> entry : routesMap.entrySet()) {
-			String path = entry.getKey();
-			// Prepend with slash if not already present.
-			if (!path.startsWith("/")) {
-				path = "/" + path;
-			}
-			if (StringUtils.hasText(this.properties.getPrefix())) {
-				path = this.properties.getPrefix() + path;
-				if (!path.startsWith("/")) {
-					path = "/" + path;
-				}
-			}
-			values.put(path, entry.getValue());
-		}
-		return values;
-	}
+    public ProxyRouteSpec getMatchingRoute(String path, String method) {
+        log.info("Finding route for path: " + path + (!StringUtils.isEmpty(method) ? " with method " + method : ""));
 
-	protected void addConfiguredRoutes(Map<String, ZuulRoute> routes) {
-		Map<String, ZuulRoute> routeEntries = this.properties.getRoutes();
-		for (ZuulRoute entry : routeEntries.values()) {
-			String route = entry.getPath();
-			if (routes.containsKey(route)) {
-				log.warn("Overwriting route " + route + ": already defined by "
-						+ routes.get(route));
-			}
-			routes.put(route, entry);
-		}
-	}
+        String location = null;
+        String targetPath = null;
+        String id = null;
+        String prefix = this.properties.getPrefix();
+        log.debug("servletPath=" + this.servletPath);
+        if (StringUtils.hasText(this.servletPath) && !this.servletPath.equals("/")
+                && path.startsWith(this.servletPath)) {
+            path = path.substring(this.servletPath.length());
+        }
+        log.debug("path=" + path);
+        Boolean retryable = this.properties.getRetryable();
+        for (Entry<Path, ZuulRoute> entry : this.routes.get().entrySet()) {
+            String pattern = entry.getKey().getRoute();
+            log.debug("Matching pattern:" + pattern);
+            if (this.pathMatcher.match(pattern, path)) {
+                ZuulRoute route = entry.getValue();
+                String routeMethod = route.getMethod();
+                if ((!StringUtils.isEmpty(routeMethod) && !StringUtils.isEmpty(method) && !routeMethod.equals(method)) ||
+                        (!StringUtils.isEmpty(routeMethod) && StringUtils.isEmpty(method))) {
 
-	public String getTargetPath(String matchingRoute, String requestURI) {
-		String path = getRoutes().get(matchingRoute);
-		return (path != null ? path : requestURI);
+                    continue;
 
-	}
+                }
+                id = route.getId();
+                location = route.getLocation();
+                targetPath = path;
 
-	@Data
-	@AllArgsConstructor
-	public static class ProxyRouteSpec {
+                if (path.startsWith(prefix) && this.properties.isStripPrefix()) {
+                    targetPath = path.substring(prefix.length());
+                }
+                if (route.isStripPrefix()) {
+                    int index = route.getPath().indexOf("*") - 1;
+                    if (index > 0) {
+                        String routePrefix = route.getPath().substring(0, index);
+                        targetPath = targetPath.replaceFirst(routePrefix, "");
+                        prefix = prefix + routePrefix;
+                    }
+                }
+                if (route.getRetryable() != null) {
+                    retryable = route.getRetryable();
+                }
+                break;
+            }
+        }
+        return (location == null ? null : new ProxyRouteSpec(id, targetPath, location,
+                prefix, retryable));
+    }
 
-		private String id;
+    public void resetRoutes() {
+        this.routes.set(locateRoutes());
+    }
 
-		private String path;
+    protected LinkedHashMap<Path, ZuulRoute> locateRoutes() {
+        Map<Path, ZuulRoute> routesMap = new TreeMap<Path, ZuulRoute>();
+        addConfiguredRoutes(routesMap);
+        routesMap.putAll(this.staticRoutes);
+        if (this.discovery != null) {
+            Map<String, ZuulRoute> staticServices = new LinkedHashMap<String, ZuulRoute>();
+            for (ZuulRoute route : routesMap.values()) {
+                String serviceId = route.getServiceId();
+                if (serviceId == null) {
+                    serviceId = route.getId();
+                }
+                if (serviceId != null) {
+                    staticServices.put(serviceId, route);
+                }
+            }
+            // Add routes for discovery services by default
+            List<String> services = this.discovery.getServices();
+            String[] ignored = this.properties.getIgnoredServices()
+                    .toArray(new String[0]);
+            for (String serviceId : services) {
+                // Ignore specifically ignored services and those that were manually
+                // configured
+                Path key = new Path("/" + serviceId + "/**");
+                if (staticServices.containsKey(serviceId)
+                        && staticServices.get(serviceId).getUrl() == null) {
+                    // Explicitly configured with no URL, cannot be ignored
+                    // all static routes are already in routesMap
+                    // Update location using serviceId if location is null
+                    ZuulRoute staticRoute = staticServices.get(serviceId);
+                    if (!StringUtils.hasText(staticRoute.getLocation())) {
+                        staticRoute.setLocation(serviceId);
+                    }
+                }
+                if (!PatternMatchUtils.simpleMatch(ignored, serviceId)
+                        && !routesMap.containsKey(key)) {
+                    // Not ignored
+                    routesMap.put(key, new ZuulRoute(key.getRoute(), serviceId));
+                }
+            }
+        }
+        if (routesMap.get(DEFAULT_ROUTE) != null) {
+            ZuulRoute defaultRoute = routesMap.get(DEFAULT_ROUTE);
+            // Move the defaultServiceId to the end
+            routesMap.remove(DEFAULT_ROUTE);
+            routesMap.put(DEFAULT_ROUTE, defaultRoute);
+        }
+        LinkedHashMap<Path, ZuulRoute> values = new LinkedHashMap<>();
+        for (Entry<Path, ZuulRoute> entry : routesMap.entrySet()) {
+            String path = entry.getKey().getRoute();
+            // Prepend with slash if not already present.
+            if (!path.startsWith("/")) {
+                path = "/" + path;
+            }
+            if (StringUtils.hasText(this.properties.getPrefix())) {
+                path = this.properties.getPrefix() + path;
+                if (!path.startsWith("/")) {
+                    path = "/" + path;
+                }
+            }
+            values.put(new Path(path, entry.getKey().getMethod()), entry.getValue());
+        }
+        return values;
+    }
 
-		private String location;
+    protected void addConfiguredRoutes(Map<Path, ZuulRoute> routes) {
+        Map<String, ZuulRoute> routeEntries = this.properties.getRoutes();
+        for (ZuulRoute entry : routeEntries.values()) {
+            String route = entry.getPath();
+            String method = entry.getMethod();
+            Path path = new Path(route, method);
+            if (routes.containsKey(path)) {
+                log.warn("Overwriting route " + path + ": already defined by "
+                        + routes.get(path));
+            }
+            routes.put(path, entry);
+        }
+    }
 
-		private String prefix;
+    public String getTargetPath(String matchingRoute, String requestURI) {
+        String path = getRoutes().get(matchingRoute);
+        return (path != null ? path : requestURI);
 
-		private Boolean retryable;
+    }
 
-	}
+    @Data
+    @AllArgsConstructor
+    protected static class Path implements Comparable<Path> {
+        private String route;
+        private String method;
+
+        public Path(final String route) {
+            this.route = route;
+        }
+
+        @Override
+        public int compareTo(Path other) {
+            return new CompareToBuilder().append(other.method, this.method).append(other.route, this.route).toComparison();
+
+        }
+    }
+
+
+    @Data
+    @AllArgsConstructor
+    public static class ProxyRouteSpec {
+
+        private String id;
+
+        private String path;
+
+        private String location;
+
+        private String prefix;
+
+        private Boolean retryable;
+
+    }
 
 }

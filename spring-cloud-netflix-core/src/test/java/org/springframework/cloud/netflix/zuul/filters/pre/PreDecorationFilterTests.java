@@ -75,7 +75,7 @@ public class PreDecorationFilterTests {
 		this.properties.setStripPrefix(true);
 		this.request.setRequestURI("/api/foo/1");
 		this.routeLocator.addRoute(new ZuulRoute("foo", "/foo/**", "foo", null, false,
-				null));
+				null,null));
 		this.filter.run();
 		RequestContext ctx = RequestContext.getCurrentContext();
 		assertEquals("/foo/1", ctx.get("requestURI"));

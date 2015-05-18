@@ -10,4 +10,6 @@ target/
 _site/
 .idea
 *.iml
+*.ipr
+*.iws
 .factorypath

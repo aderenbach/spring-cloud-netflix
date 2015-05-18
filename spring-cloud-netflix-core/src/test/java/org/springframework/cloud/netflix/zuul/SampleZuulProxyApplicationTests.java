@@ -56,81 +56,81 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = SampleZuulProxyApplication.class)
 @WebAppConfiguration
-@IntegrationTest({ "server.port: 0",
-		"zuul.routes.other: /test/**=http://localhost:7777/local",
-		"zuul.routes.another: /another/twolevel/**", "zuul.routes.simple: /simple/**" })
+@IntegrationTest({"server.port: 0",
+        "zuul.routes.other: /test/**=http://localhost:7777/local",
+        "zuul.routes.another: /another/twolevel/**", "zuul.routes.simple: /simple/**"})
 @DirtiesContext
 public class SampleZuulProxyApplicationTests {
 
-	@Value("${local.server.port}")
-	private int port;
+    @Value("${local.server.port}")
+    private int port;
 
-	@Autowired
-	private ProxyRouteLocator routes;
+    @Autowired
+    private ProxyRouteLocator routes;
 
-	@Autowired
-	private RoutesEndpoint endpoint;
+    @Autowired
+    private RoutesEndpoint endpoint;
 
-	@Test
-	public void bindRouteUsingPhysicalRoute() {
-		assertEquals("http://localhost:7777/local",
-				this.routes.getRoutes().get("/test/**"));
-	}
+    @Test
+    public void bindRouteUsingPhysicalRoute() {
+        assertEquals("http://localhost:7777/local",
+                this.routes.getRoutes().get("/test/**"));
+    }
 
-	@Test
-	public void bindRouteUsingOnlyPath() {
-		assertEquals("simple", this.routes.getRoutes().get("/simple/**"));
-	}
+    @Test
+    public void bindRouteUsingOnlyPath() {
+        assertEquals("simple", this.routes.getRoutes().get("/simple/**"));
+    }
 
-	@Test
-	public void getOnSelfViaRibbonRoutingFilter() {
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/simple/local/1", HttpMethod.GET,
-				new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.OK, result.getStatusCode());
-		assertEquals("Gotten 1!", result.getBody());
-	}
+    @Test
+    public void getOnSelfViaRibbonRoutingFilter() {
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/simple/local/1", HttpMethod.GET,
+                new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals("Gotten 1!", result.getBody());
+    }
 
-	@Test
-	public void deleteOnSelfViaSimpleHostRoutingFilter() {
-		this.routes.addRoute("/self/**", "http://localhost:" + this.port + "/local");
-		this.endpoint.reset();
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/self/1", HttpMethod.DELETE,
-				new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.OK, result.getStatusCode());
-		assertEquals("Deleted 1!", result.getBody());
-	}
+    @Test
+    public void deleteOnSelfViaSimpleHostRoutingFilter() {
+        this.routes.addRoute("/self/**", "http://localhost:" + this.port + "/local");
+        this.endpoint.reset();
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/self/1", HttpMethod.DELETE,
+                new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals("Deleted 1!", result.getBody());
+    }
 
-	@Test
-	public void stripPrefixFalseAppendsPath() {
-		this.routes.addRoute(new ZuulRoute("strip", "/strip/**", "strip",
-				"http://localhost:" + this.port + "/local", false, false));
-		this.endpoint.reset();
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/strip", HttpMethod.GET,
-				new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.OK, result.getStatusCode());
-		// Prefix not stripped to it goes to /local/strip
-		assertEquals("Gotten strip!", result.getBody());
-	}
+    @Test
+    public void stripPrefixFalseAppendsPath() {
+        this.routes.addRoute(new ZuulRoute("strip", "/strip/**", "strip",
+                "http://localhost:" + this.port + "/local", false, false, null));
+        this.endpoint.reset();
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/strip", HttpMethod.GET,
+                new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        // Prefix not stripped to it goes to /local/strip
+        assertEquals("Gotten strip!", result.getBody());
+    }
 
-	@Test
-	public void testNotFound() {
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/myinvalidpath", HttpMethod.GET,
-				new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.NOT_FOUND, result.getStatusCode());
-	}
+    @Test
+    public void testNotFound() {
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/myinvalidpath", HttpMethod.GET,
+                new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.NOT_FOUND, result.getStatusCode());
+    }
 
-	@Test
-	public void getSecondLevel() {
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/another/twolevel/local/1",
-				HttpMethod.GET, new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.OK, result.getStatusCode());
-		assertEquals("Gotten 1!", result.getBody());
-	}
+    @Test
+    public void getSecondLevel() {
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/another/twolevel/local/1",
+                HttpMethod.GET, new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals("Gotten 1!", result.getBody());
+    }
 
 }
 
@@ -140,63 +140,63 @@ public class SampleZuulProxyApplicationTests {
 @RestController
 @EnableZuulProxy
 @RibbonClients({
-		@RibbonClient(name = "simple", configuration = SimpleRibbonClientConfiguration.class),
-		@RibbonClient(name = "another", configuration = AnotherRibbonClientConfiguration.class) })
+        @RibbonClient(name = "simple", configuration = SimpleRibbonClientConfiguration.class),
+        @RibbonClient(name = "another", configuration = AnotherRibbonClientConfiguration.class)})
 class SampleZuulProxyApplication {
 
-	@RequestMapping("/testing123")
-	public String testing123() {
-		throw new RuntimeException("myerror");
-	}
+    @RequestMapping("/testing123")
+    public String testing123() {
+        throw new RuntimeException("myerror");
+    }
 
-	@RequestMapping("/local")
-	public String local() {
-		return "Hello local";
-	}
+    @RequestMapping("/local")
+    public String local() {
+        return "Hello local";
+    }
 
-	@RequestMapping(value = "/local/{id}", method = RequestMethod.DELETE)
-	public String delete(@PathVariable String id) {
-		return "Deleted " + id + "!";
-	}
+    @RequestMapping(value = "/local/{id}", method = RequestMethod.DELETE)
+    public String delete(@PathVariable String id) {
+        return "Deleted " + id + "!";
+    }
 
-	@RequestMapping(value = "/local/{id}", method = RequestMethod.GET)
-	public String get(@PathVariable String id) {
-		return "Gotten " + id + "!";
-	}
+    @RequestMapping(value = "/local/{id}", method = RequestMethod.GET)
+    public String get(@PathVariable String id) {
+        return "Gotten " + id + "!";
+    }
 
-	@RequestMapping("/")
-	public String home() {
-		return "Hello world";
-	}
+    @RequestMapping("/")
+    public String home() {
+        return "Hello world";
+    }
 
-	@Bean
-	public ZuulFilter sampleFilter() {
-		return new ZuulFilter() {
-			@Override
-			public String filterType() {
-				return "pre";
-			}
+    @Bean
+    public ZuulFilter sampleFilter() {
+        return new ZuulFilter() {
+            @Override
+            public String filterType() {
+                return "pre";
+            }
 
-			@Override
-			public boolean shouldFilter() {
-				return true;
-			}
+            @Override
+            public boolean shouldFilter() {
+                return true;
+            }
 
-			@Override
-			public Object run() {
-				return null;
-			}
+            @Override
+            public Object run() {
+                return null;
+            }
 
-			@Override
-			public int filterOrder() {
-				return 0;
-			}
-		};
-	}
+            @Override
+            public int filterOrder() {
+                return 0;
+            }
+        };
+    }
 
-	public static void main(String[] args) {
-		SpringApplication.run(SampleZuulProxyApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(SampleZuulProxyApplication.class, args);
+    }
 
 }
 
@@ -204,25 +204,25 @@ class SampleZuulProxyApplication {
 @Configuration
 class SimpleRibbonClientConfiguration {
 
-	@Bean
-	public ILoadBalancer ribbonLoadBalancer(EurekaInstanceConfig instance) {
-		BaseLoadBalancer balancer = new BaseLoadBalancer();
-		balancer.setServersList(Arrays.asList(new Server("localhost", instance
-				.getNonSecurePort())));
-		return balancer;
-	}
+    @Bean
+    public ILoadBalancer ribbonLoadBalancer(EurekaInstanceConfig instance) {
+        BaseLoadBalancer balancer = new BaseLoadBalancer();
+        balancer.setServersList(Arrays.asList(new Server("localhost", instance
+                .getNonSecurePort())));
+        return balancer;
+    }
 
 }
 
 @Configuration
 class AnotherRibbonClientConfiguration {
 
-	@Bean
-	public ILoadBalancer ribbonLoadBalancer(EurekaInstanceConfig instance) {
-		BaseLoadBalancer balancer = new BaseLoadBalancer();
-		balancer.setServersList(Arrays.asList(new Server("localhost", instance
-				.getNonSecurePort())));
-		return balancer;
-	}
+    @Bean
+    public ILoadBalancer ribbonLoadBalancer(EurekaInstanceConfig instance) {
+        BaseLoadBalancer balancer = new BaseLoadBalancer();
+        balancer.setServersList(Arrays.asList(new Server("localhost", instance
+                .getNonSecurePort())));
+        return balancer;
+    }
 
 }

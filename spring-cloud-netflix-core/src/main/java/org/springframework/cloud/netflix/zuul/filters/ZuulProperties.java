@@ -86,6 +86,8 @@ public class ZuulProperties {
 
 		private Boolean retryable;
 
+		private String method;
+
 		public ZuulRoute(String text) {
 			String location = null;
 			String path = text;
@@ -108,6 +110,14 @@ public class ZuulProperties {
 			this.path = path;
 			setLocation(location);
 		}
+
+		public ZuulRoute(String path, String location, String method) {
+			this.id = extractId(path);
+			this.path = path;
+			this.method = method;
+			setLocation(location);
+		}
+
 
 		public String getLocation() {
 			if (StringUtils.hasText(this.url)) {

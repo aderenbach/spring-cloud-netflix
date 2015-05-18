@@ -45,42 +45,42 @@ import static org.junit.Assert.assertEquals;
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringApplicationConfiguration(classes = ServletPathZuulProxyApplication.class)
 @WebAppConfiguration
-@IntegrationTest({ "server.port: 0", "server.servletPath: /app" })
+@IntegrationTest({"server.port: 0", "server.servletPath: /app"})
 @DirtiesContext
 public class ServletPathZuulProxyApplicationTests {
 
-	@Value("${local.server.port}")
-	private int port;
+    @Value("${local.server.port}")
+    private int port;
 
-	@Autowired
-	private ProxyRouteLocator routes;
+    @Autowired
+    private ProxyRouteLocator routes;
 
-	@Autowired
-	private RoutesEndpoint endpoint;
+    @Autowired
+    private RoutesEndpoint endpoint;
 
-	@Test
-	public void getOnSelfViaSimpleHostRoutingFilter() {
-		this.routes.addRoute("/self/**", "http://localhost:" + this.port + "/app/local");
-		this.endpoint.reset();
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/app/self/1", HttpMethod.GET,
-				new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.OK, result.getStatusCode());
-		assertEquals("Gotten 1!", result.getBody());
-	}
+    @Test
+    public void getOnSelfViaSimpleHostRoutingFilter() {
+        this.routes.addRoute("/self/**", "http://localhost:" + this.port + "/app/local");
+        this.endpoint.reset();
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/app/self/1", HttpMethod.GET,
+                new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        assertEquals("Gotten 1!", result.getBody());
+    }
 
-	@Test
-	public void stripPrefixFalseAppendsPath() {
-		this.routes.addRoute(new ZuulRoute("strip", "/strip/**", "strip",
-				"http://localhost:" + this.port + "/app/local", false, false));
-		this.endpoint.reset();
-		ResponseEntity<String> result = new TestRestTemplate().exchange(
-				"http://localhost:" + this.port + "/app/strip", HttpMethod.GET,
-				new HttpEntity<>((Void) null), String.class);
-		assertEquals(HttpStatus.OK, result.getStatusCode());
-		// Prefix not stripped to it goes to /local/strip
-		assertEquals("Gotten strip!", result.getBody());
-	}
+    @Test
+    public void stripPrefixFalseAppendsPath() {
+        this.routes.addRoute(new ZuulRoute("strip", "/strip/**", "strip",
+                "http://localhost:" + this.port + "/app/local", false, false, null));
+        this.endpoint.reset();
+        ResponseEntity<String> result = new TestRestTemplate().exchange(
+                "http://localhost:" + this.port + "/app/strip", HttpMethod.GET,
+                new HttpEntity<>((Void) null), String.class);
+        assertEquals(HttpStatus.OK, result.getStatusCode());
+        // Prefix not stripped to it goes to /local/strip
+        assertEquals("Gotten strip!", result.getBody());
+    }
 
 }
 
@@ -91,13 +91,13 @@ public class ServletPathZuulProxyApplicationTests {
 @EnableZuulProxy
 class ServletPathZuulProxyApplication {
 
-	@RequestMapping(value = "/local/{id}", method = RequestMethod.GET)
-	public String get(@PathVariable String id) {
-		return "Gotten " + id + "!";
-	}
+    @RequestMapping(value = "/local/{id}", method = RequestMethod.GET)
+    public String get(@PathVariable String id) {
+        return "Gotten " + id + "!";
+    }
 
-	public static void main(String[] args) {
-		SpringApplication.run(SampleZuulProxyApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(SampleZuulProxyApplication.class, args);
+    }
 
 }
